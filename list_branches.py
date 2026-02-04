@@ -249,8 +249,15 @@ def main(
             "No repo specified and not in a git directory with a GitHub remote."
         )
 
-    pr_statuses = get_pr_statuses(repo)
-    main_branch, branch_names = get_branch_names(repo)
+    try:
+        pr_statuses = get_pr_statuses(repo)
+        main_branch, branch_names = get_branch_names(repo)
+    except RuntimeError as e:
+        msg = str(e)
+        if "Could not resolve to a Repository" in msg:
+            raise SystemExit(f"Repository not found: {repo}")
+        raise SystemExit(msg)
+
     branches = get_branch_comparisons(repo, main_branch, branch_names)
     commit_dates = get_commit_dates(repo, branch_names)
     ancestry = check_ancestry(repo, since, branch_names) if since else None
