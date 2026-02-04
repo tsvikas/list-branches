@@ -13,7 +13,7 @@ from rich.table import Table
 
 app = cyclopts.App()
 
-SORT_FIELDS = {"branch", "pr", "ahead", "behind", "ours"}
+SORT_FIELDS = {"branch", "pr", "ahead", "behind", "ours", "date"}
 
 
 def gh(*args: str) -> str:
@@ -94,6 +94,25 @@ def check_ancestry(repo: str, commit: str, branch_names: list[str]) -> dict[str,
         return dict(pool.map(is_ancestor, branch_names))
 
 
+def get_commit_dates(repo: str, branch_names: list[str]) -> dict[str, str]:
+    """Fetch last commit date for each branch in parallel."""
+
+    def get_date(branch: str) -> tuple[str, str]:
+        try:
+            date = gh(
+                "api",
+                f"repos/{repo}/branches/{branch}",
+                "--jq",
+                ".commit.commit.committer.date[:10]",
+            )
+            return branch, date
+        except Exception:
+            return branch, "?"
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        return dict(pool.map(get_date, branch_names))
+
+
 def get_branch_names(repo: str) -> tuple[str, list[str]]:
     """Fetch all branches with ahead/behind counts."""
     branch_names = gh(
@@ -111,6 +130,7 @@ def get_branch_names(repo: str) -> tuple[str, list[str]]:
 def build_rows(
     branches: dict,
     pr_statuses: dict,
+    commit_dates: dict[str, str],
     ancestry: dict[str, bool] | None,
     filter_str: str | None,
 ) -> list[dict]:
@@ -124,6 +144,7 @@ def build_rows(
             "pr": pr_statuses.get(name, "-"),
             "ahead": ahead,
             "behind": behind,
+            "date": commit_dates.get(name, "?"),
             "ours": ancestry.get(name) if ancestry else None,
         }
         rows.append(row)
@@ -157,6 +178,17 @@ def make_sort_key(sort_spec: list[tuple[str, bool]]):
                 # True > False > None; for desc, reverse
                 val = {True: 2, False: 1, None: 0}.get(val, 0)
                 return -val if desc else val
+            if field == "date":
+                # Dates sort as strings; "?" always goes last
+                if val == "?":
+                    return (1, "")
+                if desc:
+                    # Invert digits to reverse sort order (newest first)
+                    inverted = ''.join(
+                        chr(ord('9') - ord(c) + ord('0')) if c.isdigit() else c for c in val
+                    )
+                    return (0, inverted)
+                return (0, val)
             if desc:
                 return -val if isinstance(val, int) else (1, val)
             return (0, val) if isinstance(val, str) else val
@@ -173,11 +205,12 @@ def print_table(rows: list[dict], main_branch: str, show_ours: bool):
     table.add_column("PR", style="magenta")
     table.add_column("Ahead", justify="right", style="green")
     table.add_column("Behind", justify="right", style="red")
+    table.add_column("Last Commit", style="yellow")
     if show_ours:
         table.add_column("Ours", justify="center")
 
     for row in rows:
-        cols = [row["branch"], row["pr"], str(row["ahead"]), str(row["behind"])]
+        cols = [row["branch"], row["pr"], str(row["ahead"]), str(row["behind"]), row["date"]]
         if show_ours:
             ours = row.get("ours")
             cols.append("[green]yes[/]" if ours else "[dim]no[/]" if ours is False else "-")
@@ -219,8 +252,9 @@ def main(
     pr_statuses = get_pr_statuses(repo)
     main_branch, branch_names = get_branch_names(repo)
     branches = get_branch_comparisons(repo, main_branch, branch_names)
+    commit_dates = get_commit_dates(repo, branch_names)
     ancestry = check_ancestry(repo, since, branch_names) if since else None
-    rows = build_rows(branches, pr_statuses, ancestry, filter)
+    rows = build_rows(branches, pr_statuses, commit_dates, ancestry, filter)
     rows.sort(key=make_sort_key(parse_sort(sort)))
     print_table(rows, main_branch, show_ours=since is not None)
 

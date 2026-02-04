@@ -19,6 +19,9 @@ uv run list_branches.py --repo owner/repo
 # Sort by PR status, then by most behind
 uv run list_branches.py --sort pr,-behind
 
+# Sort by most recently updated
+uv run list_branches.py --sort -date
+
 # Filter branches containing "feature"
 uv run list_branches.py --filter feature
 
@@ -31,19 +34,19 @@ uv run list_branches.py --since abc123
 | Option | Description |
 |--------|-------------|
 | `--repo` | GitHub repository in `owner/repo` format (default: current directory's remote) |
-| `--sort` | Sort fields, comma-separated. Prefix with `-` for descending. Fields: `branch`, `pr`, `ahead`, `behind`, `ours` |
+| `--sort` | Sort fields, comma-separated. Prefix with `-` for descending. Fields: `branch`, `pr`, `ahead`, `behind`, `date`, `ours` |
 | `--filter` | Filter branches containing this substring |
 | `--since` | Commit SHA to check ancestry. Adds "Ours" column showing if branch contains the commit |
 
 ## Example Output
 
 ```
-        Branches vs main
-┏━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━┓
-┃ Branch        ┃ PR     ┃ Ahead ┃ Behind ┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━┩
-│ feature-auth  │ open   │     3 │      1 │
-│ feature-ui    │ merged │    12 │      0 │
-│ bugfix-login  │ -      │     1 │      5 │
-└───────────────┴────────┴───────┴────────┘
+                    Branches vs main
+┏━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Branch        ┃ PR     ┃ Ahead ┃ Behind ┃ Last Commit ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━┩
+│ feature-auth  │ open   │     3 │      1 │ 2024-01-15  │
+│ feature-ui    │ merged │    12 │      0 │ 2024-01-10  │
+│ bugfix-login  │ -      │     1 │      5 │ 2024-01-08  │
+└───────────────┴────────┴───────┴────────┴─────────────┘
 ```
